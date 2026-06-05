@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/db03dfc6-e726-4215-b802-3e9ac50c82df
 
 ---
 
-### `pypy3 render-iso.py 5` vs `odin run . -- 5` 720x720p@60FPS (single-node, concurrent run)
-- pypy3: 126.54s (2.1 MB .mp4 generated)
-- odin: 97.25s (3.4 MB .mp4 generated)
-- gcc C: 59.05s (3.4 MB .mp4 generated)
+### 5-Second 720x720p@60FPS .mp4 Generation
+- pypy3: 126.54s (2.1 MB)
+- odin: 97.25s (3.4 MB)
+- gcc C: 59.05s (3.4 MB)
