@@ -10,6 +10,13 @@ https://github.com/user-attachments/assets/db03dfc6-e726-4215-b802-3e9ac50c82df
 - `pypy3 render-2D.py <seconds>`
 - `pypy3 render-3D.py <seconds>`
 - `pypy3 render-iso.py <seconds>`
+- `odin run . -- <seconds>`
 
 ### Misc
 - `pypy3` was 10x faster than `python3` on one test
+
+---
+
+### `pypy3 render-iso.py 5` vs `odin run . -- 5` 720x720p@60FPS (single-node, concurrent run)
+- pypy3: 126.54s (2.1 MB .mp4 generated)
+- odin: 97.25s (3.4 MB .mp4 generated)
