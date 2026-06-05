@@ -1,0 +1,20 @@
+/*
+# include
+!.gitignore
+!README.md
+!/2D/
+!/3D-ISO/
+!/3D-ISO-Odin/
+!/3D-ISO-C/
+!3D.mp4
+!prompt.py
+!render-2d.py
+!render-3d.py
+!render-iso.py
+!render-iso.odin
+!render-iso.c
+# ignore
+/2D/frames.rgb
+/3D-ISO/frames.rgb
+/3D-ISO-Odin/frames.rgb
+/3D-ISO-C/frames.rgb
