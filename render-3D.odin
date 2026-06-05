@@ -342,7 +342,7 @@ render :: proc() {
 		render_flame(frame_slice, depth, t)
 	}
 
-	outdir := "3D-ISO-Odin"
+	outdir := "render-odin"
     _ = os.make_directory_all(outdir)
     raw_path := strings.concatenate({outdir, "/frames.rgb"})
     defer delete(raw_path)

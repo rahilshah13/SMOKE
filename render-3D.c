@@ -404,7 +404,7 @@ void render() {
         render_flame(frame_slice, depth, t);
     }
 
-    const char *outdir = "3D-ISO-C";
+    const char *outdir = "render-C";
     mkdir(outdir, 0775);
 
     char raw_path[256];

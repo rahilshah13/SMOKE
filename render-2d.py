@@ -107,7 +107,7 @@ def render():
 
         cigarette(frame, t)
 
-    outdir = "2D"
+    outdir = "render-2D"
     os.makedirs(outdir, exist_ok=True)
     raw_path = os.path.join(outdir, "frames.rgb")
 
