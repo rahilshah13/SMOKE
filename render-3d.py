@@ -5,12 +5,10 @@ import random
 import subprocess
 import time 
 
-# Render Immuteables
+# Immuteables
 RESOLUTION, FPS, SEC = [720, 720, 3, 4], 60, int(sys.argv[1])
-#CAMERA = (0, 90, 90, -0.65, -0.065)
 
-# Scene Immuteables
-# (label, centroid, start tick)
+# Muteables
 OBJECTS = [
     ("floor", (0, 0, 0), 0),
     ("paper", (0, 0, 10), 0),
@@ -18,7 +16,6 @@ OBJECTS = [
     ("flame", (0, 0, 0), 3)
 ]
 
-# Scene Muteables
 _NODES = {
     obj[0]: {
         "centroid": obj[1],
@@ -30,13 +27,7 @@ _NODES = {
     for obj in OBJECTS
 }
 
-# a list of key[object:tick] deltas
 _EDGES = []
-
-
-# OBJ DENSITY TO .PPM FUNCTIONS
-#
-
 W, H = RESOLUTION[0], RESOLUTION[1]
 
 # -------------------------------------------------------------------
@@ -280,7 +271,6 @@ def render():
                 v = int(8 + (y / H) * 18)
                 frame[i + 0], frame[i + 1], frame[i + 2] = v, v, v
 
-
         render_floor(frame, depth, t)
         render_cigarette(frame, depth, t)
         render_smoke(frame, depth, t)
@@ -319,12 +309,6 @@ def render():
     return
 
 
-'''
-1. build immutable objects (Nodes)
-2. serialize frames
-    - apply transformations, including gravity
-3. raytracer to RENDER frames + viewing angle to a video
-'''
 start = time.time()
 render()
 print("time: ", str(time.time() - start)[:6], "s")
