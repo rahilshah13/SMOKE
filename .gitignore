@@ -1,15 +1,15 @@
 # ignore
 /*
 /*/frames.rgb
-
+/ui/*
 # include
 !.gitignore
 !README.md
+!cigarette.mp4
 !/render-2D/
 !/render-python/
 !/render-odin/
 !/render-C/
-!prompt.py
 !render-2d.py
 !render-3d.py
 !render-3d.odin
