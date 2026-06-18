@@ -6,454 +6,260 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <pthread.h>
 
-// Render Immutables
-const int RESOLUTION[4] = {720, 720, 3, 4};
 #define FPS 60
 #define W 720
 #define H 720
-
+#define N_PATHS 8
 int SEC = 0;
 
-// Scene Immutables
 typedef struct {
-    const char* label;
-    double centroid[3];
-    int start_tick;
-} Object_Tuple;
+    unsigned int thread_id;
+    double base_dist;
+    double dist_amp;
+    double dist_freq;
+    double base_yaw;
+    double yaw_speed;
+    double base_pitch;
+    double pitch_amp;
+    double pitch_freq;
+    double shake_amp;
+    double zoom_speed;
+} Camera_Config;
 
-Object_Tuple OBJECTS[] = {
-    {"floor", {0, 0, 0}, 0},
-    {"paper", {0, 0, 10}, 0},
-    {"substance_1", {0, 0, 0}, 0},
-    {"flame", {0, 0, 0}, 3}
-};
-
-// Node representations (Mirrored for parity with original structure)
-typedef int (*Node_Update_Proc)(int frame);
-
-typedef struct {
-    Node_Update_Proc update;
-} Node_Ticks;
-
-typedef struct {
-    double centroid[3];
-    double mass;
-    double (*density)(double p[3]);
-    // dynamic maps/arrays omitted as they are unused placeholders in the render loop
-    int ppm[3]; 
-} Node;
-
-// Helper to generate random double range [min, max]
-double rand_float_range(double min, double max) {
-    double scale = rand() / (double)RAND_MAX;
-    return min + scale * (max - min);
+void eval_generic_camera(double t, const Camera_Config *cam, double *dist, double *yaw, double *pitch, double *focal) {
+    *dist = cam->base_dist + cam->dist_amp * cos(t * cam->dist_freq);    
+    *yaw = cam->base_yaw + (t * cam->yaw_speed);
+    *pitch = cam->base_pitch + cam->pitch_amp * sin(t * cam->pitch_freq);    
+    double shake_y = sin(t * 4.2) * cam->shake_amp + sin(t * 9.3) * (cam->shake_amp * 0.2);
+    double shake_p = cos(t * 3.8) * cam->shake_amp + sin(t * 8.1) * (cam->shake_amp * 0.2);
+    *yaw += shake_y;
+    *pitch += shake_p;
+    *focal = 220.0 + (t * cam->zoom_speed); 
 }
 
-// Helper to generate random integer range [min, max)
-int rand_int_range(int min, int max) {
-    return min + rand() % (max - min);
+
+double rand_float_range(double min, double max, unsigned int *seed) { 
+    return min + (rand_r(seed) / (double)RAND_MAX) * (max - min); 
 }
 
-// -------------------------------------------------------------------
-// CAMERA
-// -------------------------------------------------------------------
-void camera(double t, double *dist, double *yaw, double *pitch) {
-    double yaw_val = -0.82 + 0.18 * sin(t * 0.12);
-    double pitch_val = -0.11 + 0.03 * sin(t * 0.21);
-    *dist = 82.0 - 140.0 * fmin(1.0, t / 6.0);
-
-    double shake_yaw = sin(t * 2.3) * 0.003 + sin(t * 7.7) * 0.001;
-    double shake_pitch = cos(t * 1.9) * 0.002 + sin(t * 5.1) * 0.001;
-
-    *yaw = yaw_val + shake_yaw;
-    *pitch = pitch_val + shake_pitch;
+int rand_int_range(int min, int max, unsigned int *seed) { 
+    return min + rand_r(seed) % (max - min); 
 }
 
-void rotate_y(double x, double z, double a, double *rx, double *rz) {
-    double ca = cos(a), sa = sin(a);
-    *rx = x * ca - z * sa;
-    *rz = x * sa + z * ca;
+unsigned char clamp_val(double v, int lo, int hi) { 
+    int val = (int)v; 
+    return (val < lo) ? (unsigned char)lo : ((val > hi) ? (unsigned char)hi : (unsigned char)val); 
 }
 
-void rotate_x(double y, double z, double a, double *ry, double *rz) {
-    double ca = cos(a), sa = sin(a);
-    *ry = y * ca - z * sa;
-    *rz = y * sa + z * ca;
+void system_run(const char *cmd) { 
+    int ret = system(cmd); (void)ret; 
 }
 
-bool project(double x, double y, double z, double t, int *sx, int *sy, double *sz) {
-    double dist, yaw, pitch;
-    camera(t, &dist, &yaw, &pitch);
+#define ROTATE_Y(x, z, a, rx, rz) do { \
+    double ca = cos(a), sa = sin(a); \
+    *(rx) = (x) * ca - (z) * sa; *(rz) = (x) * sa + (z) * ca; \
+} while(0)
 
-    double nx, nz;
-    rotate_y(x, z, yaw, &nx, &nz);
+#define ROTATE_X(y, z, a, ry, rz) do { \
+    double ca = cos(a), sa = sin(a); \
+    *(ry) = (y) * ca - (z) * sa; *(rz) = (y) * sa + (z) * ca; \
+} while(0)
 
-    double ny, fz;
-    rotate_x(y, nz, pitch, &ny, &fz);
 
-    double final_z = fz + dist;
-    if (final_z <= 0.1) {
-        return false;
-    }
+typedef struct { double x, y, z, d; } Sample_Point;
+typedef struct { Sample_Point *data; int size; int capacity; } Point_Buffer;
 
-    double f = 180.0 / final_z;
-    *sx = (int)((double)W * 0.58 + nx * f);
-    *sy = (int)((double)H * 0.45 - ny * f);
-    *sz = final_z;
-
-    return true;
+void buf_init(Point_Buffer *b) { 
+    b->size = 0; b->capacity = 1024; 
+    b->data = (Sample_Point *)malloc(b->capacity * sizeof(Sample_Point)); 
 }
 
-// -------------------------------------------------------------------
-// FRAMEBUFFER
-// -------------------------------------------------------------------
-unsigned char clamp_val(double v, int lo, int hi) {
-    int val = (int)v;
-    if (val < lo) return (unsigned char)lo;
-    if (val > hi) return (unsigned char)hi;
-    return (unsigned char)val;
+void buf_append(Point_Buffer *b, Sample_Point p) { 
+    if (b->size >= b->capacity) { 
+        b->capacity *= 2; b->data = (Sample_Point *)realloc(b->data, b->capacity * sizeof(Sample_Point)); \
+    } \
+    b->data[b->size++] = p; 
 }
 
 void pixel(unsigned char *frame, double *depth, int x, int y, double z, double r, double g, double b) {
-    if (x < 0 || y < 0 || x >= W || y >= H) {
-        return;
-    }
-
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
     int idx = y * W + x;
-    if (z < depth[idx]) {
-        depth[idx] = z;
-        int i = idx * 3;
-        frame[i + 0] = clamp_val(r, 0, 255);
-        frame[i + 1] = clamp_val(g, 0, 255);
-        frame[i + 2] = clamp_val(b, 0, 255);
+    if (z < depth[idx]) { 
+        depth[idx] = z; int i = idx * 3; 
+        frame[i+0] = clamp_val(r,0,255); frame[i+1] = clamp_val(g,0,255); frame[i+2] = clamp_val(b,0,255); 
     }
 }
 
-// -------------------------------------------------------------------
-// POINT CLOUD DENSITY FIELDS
-// -------------------------------------------------------------------
-double floor_density(double p[3]) {
-    if (fabs(p[1] + 8.0) < 0.5) {
-        return 1.0;
-    }
-    return 0.0;
-}
+double floor_density(double p[3]) { return (fabs(p[1] + 8.0) < 0.5) ? 1.0 : 0.0; }
 
 double cigarette_density(double p[3], double t) {
-    double x = p[0], y = p[1], z = p[2];
-    double r = sqrt(y * y + z * z);
-    double burn = fmin(10.0, t * 0.7);
-
-    if (-18.0 < x && x < (18.0 - burn) && r < 1.2) {
-        return 1.0;
-    }
-
-    if ((18.0 - burn) < x && x < (20.0 - burn) && r < 1.5) {
-        return 2.0;
-    }
-
+    double x = p[0], y = p[1], z = p[2]; double r = sqrt(y * y + z * z); double burn = fmin(10.0, t * 0.7);
+    if (-18.0 < x && x < (18.0 - burn) && r < 1.2) return 1.0;
+    if ((18.0 - burn) < x && x < (20.0 - burn) && r < 1.5) return 2.0;
     return 0.0;
 }
 
 double smoke_density(double p[3], double t) {
-    double x = p[0], y = p[1], z = p[2];
-    double source_x = 18.0 - fmin(10.0, t * 0.7);
-    double density = 0.0;
-
+    double x = p[0], y = p[1], z = p[2]; double source_x = 18.0 - fmin(10.0, t * 0.7); double density = 0.0;
     for (int i = 0; i < 32; i++) {
-        double age = (double)i * 0.18;
-        double py = age * 6.0 + t * 3.5;
-        double spread = 0.3 + py * 0.04;
-
+        double age = (double)i * 0.18; double py = age * 6.0 + t * 3.5; double spread = 0.3 + py * 0.04;
         double drift_x = sin(py * 0.15 + t * 0.8) * 1.2 + sin(py * 0.55 + t * 1.7) * 0.5;
         double drift_z = cos(py * 0.12 + t * 0.6) * 1.1 + cos(py * 0.41 + t * 1.4) * 0.6;
-
-        double px = source_x + drift_x;
-        double pz = drift_z;
-
-        double dx = x - px;
-        double dy = y - py;
-        double dz = z - pz;
-
-        double r2 = dx * dx + dz * dz;
-        double core = exp(-(r2 / (spread * spread)) - fabs(dy) * 0.35);
-
-        density += core * exp(-age * 0.05);
+        double dx = x - (source_x + drift_x); double dy = y - py; double dz = z - drift_z;
+        density += exp(-(dx*dx + dz*dz) / (spread * spread) - fabs(dy) * 0.35) * exp(-age * 0.05);
     }
-
     return density * 0.11;
 }
 
-// -------------------------------------------------------------------
-// POINT CLOUD SAMPLING
-// -------------------------------------------------------------------
-typedef struct {
-    double x, y, z, d;
-} Sample_Point;
-
-// Dynamic array setup for sample buffers
-typedef struct {
-    Sample_Point *data;
-    int size;
-    int capacity;
-} Point_Buffer;
-
-void buf_init(Point_Buffer *b) {
-    b->size = 0;
-    b->capacity = 1024;
-    b->data = (Sample_Point *)malloc(b->capacity * sizeof(Sample_Point));
-}
-
-void buf_append(Point_Buffer *b, Sample_Point p) {
-    if (b->size >= b->capacity) {
-        b->capacity *= 2;
-        b->data = (Sample_Point *)realloc(b->data, b->capacity * sizeof(Sample_Point));
-    }
-    b->data[b->size++] = p;
-}
-
-Point_Buffer sample_density_field_floor(double bounds[6], int samples) {
-    Point_Buffer pts;
-    buf_init(&pts);
-
+Point_Buffer sample_density_field_floor(double bounds[6], int samples, unsigned int *seed) {
+    Point_Buffer pts; buf_init(&pts);
     for (int i = 0; i < samples; i++) {
-        double x = rand_float_range(bounds[0], bounds[1]);
-        double y = rand_float_range(bounds[2], bounds[3]);
-        double z = rand_float_range(bounds[4], bounds[5]);
-
-        double p[3] = {x, y, z};
-        double d = floor_density(p);
-
-        if (d > 0.01) {
-            double r = rand() / (double)RAND_MAX;
-            if (r < fmin(1.0, d)) {
-                Sample_Point sp = {x, y, z, d};
-                buf_append(&pts, sp);
-            }
-        }
+        double x = rand_float_range(bounds[0], bounds[1], seed), y = rand_float_range(bounds[2], bounds[3], seed), z = rand_float_range(bounds[4], bounds[5], seed);
+        double p[3] = {x, y, z}; double d = floor_density(p);
+        if (d > 0.01 && (rand_r(seed) / (double)RAND_MAX) < fmin(1.0, d)) { Sample_Point sp = {x, y, z, d}; buf_append(&pts, sp); }
     }
     return pts;
 }
 
-Point_Buffer sample_density_field_cig(double bounds[6], int samples, double t) {
-    Point_Buffer pts;
-    buf_init(&pts);
-
+Point_Buffer sample_density_field_cig(double bounds[6], int samples, double t, unsigned int *seed) {
+    Point_Buffer pts; buf_init(&pts);
     for (int i = 0; i < samples; i++) {
-        double x = rand_float_range(bounds[0], bounds[1]);
-        double y = rand_float_range(bounds[2], bounds[3]);
-        double z = rand_float_range(bounds[4], bounds[5]);
-
-        double p[3] = {x, y, z};
-        double d = cigarette_density(p, t);
-
-        if (d > 0.01) {
-            double r = rand() / (double)RAND_MAX;
-            if (r < fmin(1.0, d)) {
-                Sample_Point sp = {x, y, z, d};
-                buf_append(&pts, sp);
-            }
-        }
+        double x = rand_float_range(bounds[0], bounds[1], seed), y = rand_float_range(bounds[2], bounds[3], seed), z = rand_float_range(bounds[4], bounds[5], seed);
+        double p[3] = {x, y, z}; double d = cigarette_density(p, t);
+        if (d > 0.01 && (rand_r(seed) / (double)RAND_MAX) < fmin(1.0, d)) { Sample_Point sp = {x, y, z, d}; buf_append(&pts, sp); }
     }
     return pts;
 }
 
-Point_Buffer sample_density_field_smoke(double bounds[6], int samples, double t) {
-    Point_Buffer pts;
-    buf_init(&pts);
-
+Point_Buffer sample_density_field_smoke(double bounds[6], int samples, double t, unsigned int *seed) {
+    Point_Buffer pts; buf_init(&pts);
     for (int i = 0; i < samples; i++) {
-        double x = rand_float_range(bounds[0], bounds[1]);
-        double y = rand_float_range(bounds[2], bounds[3]);
-        double z = rand_float_range(bounds[4], bounds[5]);
-
-        double p[3] = {x, y, z};
-        double d = smoke_density(p, t);
-
-        if (d > 0.01) {
-            double r = rand() / (double)RAND_MAX;
-            if (r < fmin(1.0, d)) {
-                Sample_Point sp = {x, y, z, d};
-                buf_append(&pts, sp);
-            }
-        }
+        double x = rand_float_range(bounds[0], bounds[1], seed), y = rand_float_range(bounds[2], bounds[3], seed), z = rand_float_range(bounds[4], bounds[5], seed);
+        double p[3] = {x, y, z}; double d = smoke_density(p, t);
+        if (d > 0.01 && (rand_r(seed) / (double)RAND_MAX) < fmin(1.0, d)) { Sample_Point sp = {x, y, z, d}; buf_append(&pts, sp); }
     }
     return pts;
 }
 
-// -------------------------------------------------------------------
-// RENDERERS
-// -------------------------------------------------------------------
-void render_floor(unsigned char *frame, double *depth, double t) {
-    double bounds[6] = {-80, 80, -9, -7, -80, 80};
-    Point_Buffer pts = sample_density_field_floor(bounds, 40000);
-
-    for (int i = 0; i < pts.size; i++) {
-        Sample_Point pt = pts.data[i];
-        int sx, sy;
-        double sz;
-        if (!project(pt.x, pt.y, pt.z, t, &sx, &sy, &sz)) continue;
-
-        double shade = 35.0 + (sz + 80.0) * 0.3;
-        pixel(frame, depth, sx, sy, sz, shade, shade, shade);
-    }
-    free(pts.data);
+bool project_point(double x, double y, double z, double t, const Camera_Config *cam, int *sx, int *sy, double *sz) {
+    double dist, yaw, pitch, focal;
+    eval_generic_camera(t, cam, &dist, &yaw, &pitch, &focal);
+    
+    double nx, nz; ROTATE_Y(x, z, yaw, &nx, &nz);
+    double ny, fz; ROTATE_X(y, nz, pitch, &ny, &fz);
+    
+    double final_z = fz + dist;
+    if (final_z <= 0.1) return false;
+    
+    double f = focal / final_z;
+    *sx = (int)((double)W * 0.50 + nx * f); // Centered horizon shift
+    *sy = (int)((double)H * 0.48 - ny * f);
+    *sz = final_z;
+    return true;
 }
 
-void render_cigarette(unsigned char *frame, double *depth, double t) {
-    double bounds[6] = {-22, 22, -2, 2, -2, 2};
-    Point_Buffer pts = sample_density_field_cig(bounds, 50000, t);
-
-    for (int i = 0; i < pts.size; i++) {
-        Sample_Point pt = pts.data[i];
-        int sx, sy;
-        double sz;
-        if (!project(pt.x, pt.y, pt.z, t, &sx, &sy, &sz)) continue;
-
-        double burn = fmin(10.0, t * 0.7);
-        double r, g, b;
-
-        if (pt.x > (16.0 - burn)) {
-            r = 255;
-            g = (double)rand_int_range(60, 140);
-            b = 10;
-        } else if (pt.x < -12.0) {
-            r = 210; g = 160; b = 90;
-        } else {
-            r = 240; g = 240; b = 220;
-        }
-
-        pixel(frame, depth, sx, sy, sz, r, g, b);
-    }
-    free(pts.data);
-}
-
-void render_smoke(unsigned char *frame, double *depth, double t) {
-    double bounds[6] = {5, 30, -2, 40, -10, 10};
-    Point_Buffer pts = sample_density_field_smoke(bounds, 200000, t);
-
-    for (int i = 0; i < pts.size; i++) {
-        Sample_Point pt = pts.data[i];
-        int sx, sy;
-        double sz;
-        if (!project(pt.x, pt.y, pt.z, t, &sx, &sy, &sz)) continue;
-
-        double c = 80.0 + fmin(175.0, pt.d * 220.0);
-        pixel(frame, depth, sx, sy, sz, c, c, c);
-    }
-    free(pts.data);
-}
-
-void render_flame(unsigned char *frame, double *depth, double t) {
-    if (t > 1.5) return;
-
-    for (int i = 0; i < 12000; i++) {
-        double x = 20.0 + rand_float_range(-1.0, 2.0);
-        double y = rand_float_range(-1.5, 3.0);
-        double z = rand_float_range(-1.5, 1.5);
-
-        int sx, sy;
-        double sz;
-        if (!project(x, y, z, t, &sx, &sy, &sz)) continue;
-
-        double heat = 0.77;
-        double r = 255.0;
-        double g = 180.0 * (1.0 - heat);
-        double b = 40.0 * (1.0 - heat);
-
-        pixel(frame, depth, sx, sy, sz, r, g, b);
-    }
-}
-
-void system_run(const char *cmd) {
-    int ret = system(cmd);
-    (void)ret; // Suppress unused result compiler hints
-}
-
-void render() {
+void* render_pipeline_runner(void* arg) {
+    Camera_Config *cam = (Camera_Config*)arg;
+    unsigned int seed = (unsigned int)time(NULL) + cam->thread_id;
+    
     int total_frames = FPS * SEC;
     long long frame_size = W * H * 3;
-
     unsigned char *FRAME = (unsigned char *)malloc(total_frames * frame_size);
     double *depth = (double *)malloc(W * H * sizeof(double));
-
+    
+    printf("[Thread %u] Macro Zoom Locked! Base Distance: %.2f | Zoom Velocity: +%.1f f/sec\n", 
+           cam->thread_id, cam->base_dist, cam->zoom_speed);
+           
     for (int tick = 0; tick < total_frames; tick++) {
         double t = (double)tick / (double)FPS;
         unsigned char *frame_slice = &FRAME[tick * frame_size];
+        
+        for (int i = 0; i < W * H; i++) depth[i] = 1e9;
+        for (int i = 0; i < W * H * 3; i++) frame_slice[i] = 10; // Dark studio backdrop
 
-        // Reset depth matrix values to 1e9
-        for (int i = 0; i < W * H; i++) {
-            depth[i] = 1e9;
+        double bounds_floor[6] = {-120, 120, -9, -7, -120, 120};
+        Point_Buffer pts_floor = sample_density_field_floor(bounds_floor, 40000, &seed);
+        for (int i = 0; i < pts_floor.size; i++) {
+            Sample_Point pt = pts_floor.data[i]; int sx, sy; double sz;
+            if (!project_point(pt.x, pt.y, pt.z, t, cam, &sx, &sy, &sz)) continue;
+            double shade = 30.0 + (sz * 0.15); // Subtle distance-based surface lighting
+            pixel(frame_slice, depth, sx, sy, sz, shade, shade, shade + 3.0);
         }
-
-        // Generate background gradient
-        for (int y = 0; y < H; y++) {
-            for (int x = 0; x < W; x++) {
-                int i = (y * W + x) * 3;
-                unsigned char v = (unsigned char)(8 + ((double)y / (double)H) * 18);
-                frame_slice[i + 0] = v;
-                frame_slice[i + 1] = v;
-                frame_slice[i + 2] = v;
-            }
+        free(pts_floor.data);
+        
+        double bounds_cig[6] = {-22, 22, -2, 2, -2, 2};
+        Point_Buffer pts_cig = sample_density_field_cig(bounds_cig, 50000, t, &seed);
+        for (int i = 0; i < pts_cig.size; i++) {
+            Sample_Point pt = pts_cig.data[i]; int sx, sy; double sz;
+            if (!project_point(pt.x, pt.y, pt.z, t, cam, &sx, &sy, &sz)) continue;
+            double burn = fmin(10.0, t * 0.7); double r, g, b;
+            if (pt.x > (16.0 - burn)) { r = 255; g = (double)rand_int_range(70, 150, &seed); b = 15; }
+            else if (pt.x < -12.0) { r = 215; g = 155; b = 85; } // Structured filter tip
+            else { r = 238; g = 238; b = 230; } // Wrapping paper core
+            pixel(frame_slice, depth, sx, sy, sz, r, g, b);
         }
-
-        render_floor(frame_slice, depth, t);
-        render_cigarette(frame_slice, depth, t);
-        render_smoke(frame_slice, depth, t);
-        render_flame(frame_slice, depth, t);
+        free(pts_cig.data);
+        
+        double bounds_smoke[6] = {5, 35, -2, 45, -12, 12};
+        Point_Buffer pts_smoke = sample_density_field_smoke(bounds_smoke, 160000, t, &seed);
+        for (int i = 0; i < pts_smoke.size; i++) {
+            Sample_Point pt = pts_smoke.data[i]; int sx, sy; double sz;
+            if (!project_point(pt.x, pt.y, pt.z, t, cam, &sx, &sy, &sz)) continue;
+            double c = 85.0 + fmin(170.0, pt.d * 240.0);
+            pixel(frame_slice, depth, sx, sy, sz, c, c + 2.0, c + 6.0);
+        }
+        free(pts_smoke.data);
     }
-
+    
+    // Write out frames and pipe straight into x264 profiles
     const char *outdir = "render-C";
     mkdir(outdir, 0775);
-
-    char raw_path[256];
-    snprintf(raw_path, sizeof(raw_path), "%s/frames.rgb", outdir);
-
+    char raw_path[256], mp4_path[256], cmd[1024];
+    snprintf(raw_path, sizeof(raw_path), "%s/frames_inst_%u.rgb", outdir, cam->thread_id);
     FILE *f = fopen(raw_path, "wb");
-    if (f != NULL) {
-        fwrite(FRAME, 1, total_frames * frame_size, f);
-        fclose(f);
-    }
-
-    char mp4_path[256];
-    snprintf(mp4_path, sizeof(mp4_path), "%s/cigarette.mp4", outdir);
-
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd), 
-        "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s %dx%d -r %d -i %s -c:v libx264 -pix_fmt yuv420p %s",
-        W, H, FPS, raw_path, mp4_path
-    );
-
+    if (f) { fwrite(FRAME, 1, total_frames * frame_size, f); fclose(f); }
+    snprintf(mp4_path, sizeof(mp4_path), "%s/cigarette_inst_%u.mp4", outdir, cam->thread_id);
+    snprintf(cmd, sizeof(cmd), "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s %dx%d -r %d -i %s -c:v libx264 -pix_fmt yuv420p %s > /dev/null 2>&1", W, H, FPS, raw_path, mp4_path);
     system_run(cmd);
-
-    free(FRAME);
-    free(depth);
+    
+    free(FRAME); free(depth); free(cam);
+    return NULL;
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("Usage: render <seconds>\n");
-        return 1;
-    }
-
+    if (argc < 2) { printf("Usage: render-3D <seconds>\n"); return 1; }
     SEC = atoi(argv[1]);
-    if (SEC <= 0) {
-        printf("Invalid seconds parameter.\n");
-        return 1;
-    }
-
-    // Seed standard library RNG
-    srand((unsigned int)time(NULL));
-
+    if (SEC <= 0) return 1;
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
+    pthread_t threads[N_PATHS];
+    unsigned int global_seed = (unsigned int)time(NULL);
 
-    render();
+    printf("Spawning %d threads...\n", N_PATHS);
+    for (int i = 0; i < N_PATHS; i++) {
+        Camera_Config *cam = (Camera_Config*)malloc(sizeof(Camera_Config));
+        cam->thread_id = i;
+        cam->base_dist  = rand_float_range(20.0, 35.0, &global_seed);
+        cam->dist_amp   = rand_float_range(2.0, 6.0, &global_seed);
+        cam->dist_freq  = rand_float_range(0.2, 0.4, &global_seed);
+        cam->base_yaw   = rand_float_range(-1.0, 1.0, &global_seed);
+        cam->yaw_speed  = rand_float_range(-0.15, 0.15, &global_seed);
+        cam->base_pitch = rand_float_range(-0.4, -0.2, &global_seed);
+        cam->pitch_amp  = rand_float_range(0.04, 0.12, &global_seed);
+        cam->pitch_freq = rand_float_range(0.1, 0.3, &global_seed);
+        cam->shake_amp  = rand_float_range(0.002, 0.004, &global_seed);
+        cam->zoom_speed = rand_float_range(15.0, 35.0, &global_seed); // Dynamic push factor
+        pthread_create(&threads[i], NULL, render_pipeline_runner, cam);
+    }
+
+    for (int i = 0; i < N_PATHS; i++) {
+        pthread_join(threads[i], NULL);
+    }
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-
-    printf("time: %.4fs\n", elapsed);
+    printf("\nSuccess! Generated %d renders inside 'render-C/' in %.4fs\n", N_PATHS, elapsed);
     return 0;
 }
