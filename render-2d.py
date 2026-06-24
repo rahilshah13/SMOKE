@@ -107,7 +107,7 @@ def render():
 
         cigarette(frame, t)
 
-    outdir = "render-2D"
+    outdir = "./"
     os.makedirs(outdir, exist_ok=True)
     raw_path = os.path.join(outdir, "frames.rgb")
 
@@ -115,7 +115,7 @@ def render():
         for frame in FRAME:
             f.write(bytearray(frame))
 
-    mp4_path = os.path.join(outdir, "cigarette.mp4")
+    mp4_path = os.path.join(outdir, "2d_cig.mp4")
     subprocess.run([
         "ffmpeg",
         "-y",
