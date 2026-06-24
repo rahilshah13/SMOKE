@@ -11,7 +11,7 @@
 #define FPS 60
 #define W 720
 #define H 720
-#define N_PATHS 2
+#define N_PATHS 1
 int SEC = 0;
 
 typedef struct {
@@ -220,7 +220,7 @@ void* render_pipeline_runner(void* arg) {
     snprintf(raw_path, sizeof(raw_path), "%s/frames_inst_%u.rgb", outdir, cam->thread_id);
     FILE *f = fopen(raw_path, "wb");
     if (f) { fwrite(FRAME, 1, total_frames * frame_size, f); fclose(f); }
-    snprintf(mp4_path, sizeof(mp4_path), "%s/point_cloud_cig_%u.mp4", outdir, cam->thread_id);
+    snprintf(mp4_path, sizeof(mp4_path), "%s/pc_cig_%u.mp4", outdir, cam->thread_id);
     snprintf(cmd, sizeof(cmd), "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s %dx%d -r %d -i %s -c:v libx264 -pix_fmt yuv420p %s > /dev/null 2>&1", W, H, FPS, raw_path, mp4_path);
     system_run(cmd);
     

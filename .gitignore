@@ -2,7 +2,7 @@
 /ui/*
 !.gitignore
 !README.md
-!*.mp4
+!*.gif
 !render-2d.py
 !render-opengl.c
-!render-point-cloud.c
+!render-pc.c
