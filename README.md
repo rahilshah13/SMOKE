@@ -15,3 +15,12 @@
 - `gcc -O3 diamond.c -o diamond -I/opt/homebrew/include -L/opt/homebrew/lib -lglfw -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo -lm`
 
 - `./diamond -cut 0 -carat 2 -clarity 0.01 -g .9 -b .15 -o brilliant_flawless_pissy_yellow_2ct.gif`![](brilliant_flawless_pissy_yellow_2ct.gif)
+  
+
+---
+
+
+### `opengl_render.py`
+
+
+![](opengl_shader.gif)
