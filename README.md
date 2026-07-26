@@ -24,3 +24,9 @@
 
 
 ![](opengl_shader.gif)
+
+---
+
+### `rig.py`
+
+- `python rig.py script.rig`
