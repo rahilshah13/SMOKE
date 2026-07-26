@@ -1,3 +1,4 @@
+import sys
 import subprocess
 import os
 import trimesh
@@ -150,19 +151,27 @@ def parse_and_apply_dsl(dsl_text, rigged_objects_map):
 
 
 if __name__ == "__main__":
-    scene_map = generate_parametric_human(mass_kg=75.0, height_m=1.75)
+    if len(sys.argv) > 1:
+        script_path = sys.argv[1]
+        if not os.path.exists(script_path):
+            print(f"Error: Rigging script file '{script_path}' not found.")
+            sys.exit(1)
+        with open(script_path, "r") as f:
+            sample_dsl = f.read()
+    else:
+        sample_dsl = """
+            Chest: Chest_translate(0.0, 1.13, 0.0)
+            Chest: Chest_uniform_scale(1.05)
+            LeftUpperArm: LeftUpperArm_oscillate(x, 0.5, 2.0)
+            Head: Head_orbit(1.2, 0.2, y)
+        """
 
-    sample_dsl = """
-        Chest: Chest_translate(0.0, 1.13, 0.0)
-        Chest: Chest_uniform_scale(1.05)
-        LeftUpperArm: LeftUpperArm_oscillate(x, 0.5, 2.0)
-        Head: Head_orbit(1.2, 0.2, y)
-    """
+    scene_map = generate_parametric_human(mass_kg=75.0, height_m=1.75)
 
     print("Verifying DSL syntax via verify_rig.pl...")
     if not verify_dsl_with_trealla(sample_dsl):
         print("Prolog verification failed. Aborting execution.")
-        exit(1)
+        sys.exit(1)
     print("Prolog verification passed.")
 
     parse_and_apply_dsl(sample_dsl, scene_map)
