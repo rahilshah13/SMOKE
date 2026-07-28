@@ -2,7 +2,7 @@
 /ui/*
 !.gitignore
 !README.md
-!*.gif
+!/artifacts/*
 !render-2d.py
 !render-opengl.c
 !render-pc.c
