@@ -20,13 +20,17 @@
 ---
 
 
-### `opengl_render.py`
+### `render-opengl.py`
 
 
 ![](artifacts/opengl_shader.gif)
 
 ---
 
-### `rig.py`
+### `rig/rig.py` & `rig/rig_parser.pl`
 
-- `python rig.py script.rig`
+- 1:`tpl -l rig_parser.pl -g "write_rigging_program(77), halt."`
+- 2: `tpl -l rig_parser.pl -g "validate_script, halt."`
+- 3: `python3 rig.py script.rig`
+
+![](artifacts/rig_0_glb.png)
