@@ -4,7 +4,6 @@ import os
 import trimesh
 import numpy as np
 
-
 class RiggedObject:
     def __init__(self, name, mesh):
         self.name = name
@@ -59,7 +58,6 @@ def generate_parametric_human(mass_kg, height_m):
         'RightFoot': RiggedObject('RightFoot', joint_mesh.copy())
     }
 
-    # Initial anatomical resting layout offsets
     offsets = {
         'Hips': [0.0, 0.5 * height_m, 0.0],
         'Spine': [0.0, 0.65 * height_m, 0.0],
@@ -94,7 +92,6 @@ def verify_dsl_with_trealla(dsl_text):
     if not os.path.exists(prolog_file):
         raise FileNotFoundError(f"Could not find Prolog file: {prolog_file}")
 
-    # Format newlines and quotes to be safe for TPL double-quoted string literals
     escaped_dsl = dsl_text.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '')
     query = f'verify_rigging_program("{escaped_dsl}"), halt.'
 
@@ -111,25 +108,65 @@ def verify_dsl_with_trealla(dsl_text):
         return False
 
 
-def render_rigging_scene(rigged_objects, t):
-    scene = trimesh.Scene()
+def process_rigging_scene(rigged_objects, time_steps):
+    output_dir = "rigged_glbs"
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs("_frames", exist_ok=True)
+    frame_files = []
+
+    print(f"Processing {len(time_steps)} frames (GLBs + Image snapshots)...")
     
-    # Add all meshes to the scene
-    for obj in rigged_objects.values():
-        scene.add_geometry(obj.base_mesh, node_name=obj.name, geom_name=obj.name)
+    for i, t in enumerate(time_steps):
+        # Build a fresh scene for each time step so transformations don't accumulate incorrectly 
+        # and camera bounds / node references stay stable without flickering.
+        frame_scene = trimesh.Scene()
         
-    # Apply the computed transforms for time step t
-    for obj in rigged_objects.values():
-        current_matrix = np.eye(4)
-        for func in obj.transform_funcs:
-            current_matrix = current_matrix @ func(t)
+        for obj in rigged_objects.values():
+            mesh_at_t = obj.get_mesh_at_time(t)
+            frame_scene.add_geometry(mesh_at_t, node_name=obj.name, geom_name=obj.name)
+
+        # 1. Export GLB for this exact time frame
+        glb_path = os.path.join(output_dir, f"frame_{i:04d}_t{t:.2f}.glb")
+        frame_scene.export(glb_path)
+
+        # 2. Render PNG snapshot using pyrender or offscreen renderer if available, 
+        # or fall back to trimesh's software/gl pipeline.
+        png_data = None
+        try:
+            png_data = frame_scene.save_image(resolution=[800, 600], backend='gl')
+        except Exception:
+            try:
+                png_data = frame_scene.save_image(resolution=[800, 600], backend='pyglet')
+            except Exception:
+                png_data = None
+
+        if png_data:
+            frame_path = f"_frames/frame_{i:04d}.png"
+            with open(frame_path, "wb") as f:
+                f.write(png_data)
+            frame_files.append(frame_path)
+
+    print(f"GLB export complete. Files saved in {output_dir}/")
+
+    # Stitch frames into GIF
+    if frame_files:
+        output_filename = "rigged_scene.gif"
+        print(f"Stitched {len(frame_files)} frames into {output_filename} using ffmpeg...")
         
-        # Update the node's transform matrix in the scene graph
-        scene.graph.update(frame_to=obj.name, matrix=current_matrix)
-        
-    output_filename = f"rigged_scene_t{t:.1f}.glb"
-    scene.export(output_filename)
-    print(f"Scene successfully rendered and exported to {output_filename} at t={t} seconds.")
+        subprocess.run([
+            "ffmpeg", "-y", "-framerate", "30", "-i", "_frames/frame_%04d.png",
+            "-vf", "fps=30,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+            output_filename
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        for f in frame_files:
+            os.remove(f)
+        os.rmdir("_frames")
+        print(f"Animated GIF successfully exported to {output_filename}")
+    else:
+        print("Warning: Headless image backend unavailable; skipped GIF creation, but GLB sequence generated successfully.")
+        if os.path.exists("_frames"):
+            os.rmdir("_frames")
 
 
 def parse_and_apply_dsl(dsl_text, rigged_objects_map):
@@ -187,8 +224,10 @@ def parse_and_apply_dsl(dsl_text, rigged_objects_map):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        script_path = sys.argv[1]
+    positional_args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
+
+    if positional_args:
+        script_path = positional_args[0]
         if not os.path.exists(script_path):
             print(f"Error: Rigging script file '{script_path}' not found.")
             sys.exit(1)
@@ -210,8 +249,7 @@ if __name__ == "__main__":
         sys.exit(1)
     print("Prolog verification passed.")
 
-    # Apply the verified DSL commands to the scene map
     parse_and_apply_dsl(sample_dsl, scene_map)
     
-    # Render the scene at an arbitrary time step (e.g., 2.5 seconds into the animation)
-    render_rigging_scene(scene_map, t=2.5)
+    time_steps = np.linspace(0, 3.0, 90)
+    process_rigging_scene(scene_map, time_steps)

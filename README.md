@@ -29,6 +29,7 @@
 
 ### `rig/rig.py` & `rig/rig_parser.pl`
 
+- `pip install trimesh numpy ffmpeg-python "pyglet<2"`
 - 1:`tpl -l rig_parser.pl -g "write_rigging_program(77), halt."`
 - 2: `tpl -l rig_parser.pl -g "validate_script, halt."`
 - 3: `python3 rig.py script.rig`
