@@ -1,6 +1,7 @@
 import sys
 import subprocess
 import os
+import shutil
 import trimesh
 import numpy as np
 
@@ -171,7 +172,7 @@ def process_rigging_scene(rigged_objects, time_steps):
         if render_scene_to_image(frame_scene, frame_path):
             frame_files.append(frame_path)
 
-    print(f"GLB export complete. Files saved in {output_dir}/")
+    print(f"GLB export complete. Files saved temporarily in {output_dir}/")
 
     if frame_files:
         output_filename = "rigged_scene.gif"
@@ -187,6 +188,11 @@ def process_rigging_scene(rigged_objects, time_steps):
             os.remove(f)
         os.rmdir("_frames")
         print(f"Animated GIF successfully exported to {output_filename}")
+
+        # Clean up the temporary GLB folder after GIF rendering
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+            print(f"Cleaned up temporary directory: {output_dir}/")
     else:
         print("Warning: Could not render frame snapshots for GIF creation.")
         if os.path.exists("_frames"):
