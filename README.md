@@ -26,7 +26,7 @@
 ![](artifacts/opengl_shader.gif)
 
 ---
-### `heads.c`
+### `heads.c` (Gemini Flash-Mini 35 shots)
 - `gcc heads.c -o heads -I/opt/homebrew/include -L/opt/homebrew/lib -lglfw -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo -lm`
 - `./heads`
 ![](artifacts/heads.gif)
