@@ -13,14 +13,6 @@
 verify_rigging_program(String) :-
     phrase(program, String).
 
-% write_sample_rigging/0
-% Convenience wrapper defaulting to a 10-second duration sample.
-write_sample_rigging :-
-    write_rigging_program(10).
-
-% write_rigging_program(+Seconds)
-% Generates an arbitrary valid rigging file for every riggable body part 
-% across the specified duration (in seconds) and writes it to script.rig.
 write_rigging_program(Seconds) :-
     Parts = [
         'Hips', 'Spine', 'Chest', 'Neck', 'Head',
@@ -32,6 +24,22 @@ write_rigging_program(Seconds) :-
     setup_call_cleanup(
         open('script.rig', write, Stream),
         generate_rigging_lines(Stream, Parts, Seconds),
+        close(Stream)
+    ).
+
+% write_rigging_program(+StrideFrequency, +StepAmplitude)
+% Generates an arbitrarily parameterized, valid walk cycle script and writes it to script.rig.
+write_rigging_program(StrideFrequency, StepAmplitude) :-
+    Parts = [
+        'Hips', 'Spine', 'Chest', 'Neck', 'Head',
+        'LeftShoulder', 'LeftUpperArm', 'LeftLowerArm', 'LeftHand',
+        'RightShoulder', 'RightUpperArm', 'RightLowerArm', 'RightHand',
+        'LeftUpperLeg', 'LeftLowerLeg', 'LeftFoot',
+        'RightUpperLeg', 'RightLowerLeg', 'RightFoot'
+    ],
+    setup_call_cleanup(
+        open('script.rig', write, Stream),
+        generate_walk_cycle_lines(Stream, Parts, StrideFrequency, StepAmplitude),
         close(Stream)
     ).
 
@@ -47,6 +55,44 @@ generate_commands_for_part(Stream, Part, Seconds) :-
     write(Stream, OscLine),
     format(atom(OrbitLine), '~w: ~w_orbit(1.2, 0.2, y);\n', [Part, Part]),
     write(Stream, OrbitLine).
+
+generate_walk_cycle_lines(_, [], _, _).
+generate_walk_cycle_lines(Stream, [Part | Rest], Freq, Amp) :-
+    generate_walk_commands_for_part(Stream, Part, Freq, Amp),
+    generate_walk_cycle_lines(Stream, Rest, Freq, Amp).
+
+generate_walk_commands_for_part(Stream, 'Hips', Freq, Amp) :-
+    !,
+    format(Stream, 'Hips: Hips_translate(0.0, 0.0, 0.0);\n', []),
+    format(Stream, 'Hips: Hips_oscillate(y, ~w, ~w);\n', [Freq, Amp]),
+    format(Stream, 'Hips: Hips_oscillate(z, ~w, ~w);\n', [Freq, Amp]).
+generate_walk_commands_for_part(Stream, 'LeftUpperLeg', Freq, Amp) :-
+    !,
+    format(Stream, 'LeftUpperLeg: LeftUpperLeg_translate(0.0, 0.0, 0.0);\n', []),
+    format(Stream, 'LeftUpperLeg: LeftUpperLeg_oscillate(x, ~w, ~w);\n', [Freq, Amp]).
+generate_walk_commands_for_part(Stream, 'RightUpperLeg', Freq, Amp) :-
+    !,
+    format(Stream, 'RightUpperLeg: RightUpperLeg_translate(0.0, 0.0, 0.0);\n', []),
+    format(Stream, 'RightUpperLeg: RightUpperLeg_oscillate(x, ~w, -~w);\n', [Freq, Amp]).
+generate_walk_commands_for_part(Stream, 'LeftLowerLeg', Freq, Amp) :-
+    !,
+    format(Stream, 'LeftLowerLeg: LeftLowerLeg_translate(0.0, 0.0, 0.0);\n', []),
+    format(Stream, 'LeftLowerLeg: LeftLowerLeg_oscillate(x, ~w, ~w);\n', [Freq, Amp]).
+generate_walk_commands_for_part(Stream, 'RightLowerLeg', Freq, Amp) :-
+    !,
+    format(Stream, 'RightLowerLeg: RightLowerLeg_translate(0.0, 0.0, 0.0);\n', []),
+    format(Stream, 'RightLowerLeg: RightLowerLeg_oscillate(x, ~w, -~w);\n', [Freq, Amp]).
+generate_walk_commands_for_part(Stream, 'LeftUpperArm', Freq, Amp) :-
+    !,
+    format(Stream, 'LeftUpperArm: LeftUpperArm_translate(0.0, 0.0, 0.0);\n', []),
+    format(Stream, 'LeftUpperArm: LeftUpperArm_oscillate(x, ~w, -~w);\n', [Freq, Amp]).
+generate_walk_commands_for_part(Stream, 'RightUpperArm', Freq, Amp) :-
+    !,
+    format(Stream, 'RightUpperArm: RightUpperArm_translate(0.0, 0.0, 0.0);\n', []),
+    format(Stream, 'RightUpperArm: RightUpperArm_oscillate(x, ~w, ~w);\n', [Freq, Amp]).
+generate_walk_commands_for_part(Stream, Part, Freq, _) :-
+    format(Stream, '~w: ~w_translate(0.0, 0.0, 0.0);\n', [Part, Part]),
+    format(Stream, '~w: ~w_oscillate(x, ~w, 0.1);\n', [Part, Part, Freq]).
 
 %% ---------------------------------------------------------
 %% Stream-to-Char Reader for Trealla Compatibility

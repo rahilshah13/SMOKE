@@ -30,7 +30,8 @@
 ### `rig/rig.py` & `rig/rig_parser.pl`
 
 - `pip install trimesh numpy ffmpeg-python "pyglet<2" matplotlib`
-- 1:`tpl -l rig_parser.pl -g "write_rigging_program(77), halt."`
-- 2: `python3 rig.py script.rig`
+- Random: `tpl -l rig_parser.pl -g "write_rigging_program(77), halt."` 
+- Walk Cycle: `tpl -l rig_parser.pl -g "write_rigging_program(2.0, 0.3), halt."`
+- Render: `python3 rig.py script.rig`
 
 ![](artifacts/rigged_glbs.gif)
