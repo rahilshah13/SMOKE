@@ -5,9 +5,10 @@ import trimesh
 import numpy as np
 
 class RiggedObject:
-    def __init__(self, name, mesh):
+    def __init__(self, name, mesh, pivot=None):
         self.name = name
         self.base_mesh = mesh
+        self.pivot = np.array(pivot) if pivot is not None else np.array([0.0, 0.0, 0.0])
         self.transform_funcs = []
 
     def add_transformation(self, func):
@@ -27,62 +28,52 @@ def generate_parametric_human(mass_kg, height_m):
     total_volume = mass_kg / density
     scale_factor = (total_volume / (height_m * 0.1**2)) ** (1.0 / 3.0)
 
-    # Base geometries
+    # Base geometries (watertight 3D manifolds, Z-up oriented)
     chest_mesh = trimesh.creation.capsule(radius=0.15 * scale_factor, height=0.4 * height_m)
     head_mesh = trimesh.creation.icosphere(radius=0.08 * scale_factor, subdivisions=2)
-    head_mesh.apply_translation([0.0, (0.4 * height_m / 2.0) + (0.08 * scale_factor), 0.0])
+    head_mesh.apply_translation([0.0, 0.0, (0.4 * height_m / 2.0) + (0.08 * scale_factor)])
 
     arm_mesh = trimesh.creation.capsule(radius=0.04 * scale_factor, height=0.3 * height_m)
     leg_mesh = trimesh.creation.capsule(radius=0.05 * scale_factor, height=0.4 * height_m)
     joint_mesh = trimesh.creation.icosphere(radius=0.03 * scale_factor, subdivisions=1)
 
-    parts = {
-        'Hips': RiggedObject('Hips', joint_mesh.copy()),
-        'Spine': RiggedObject('Spine', joint_mesh.copy()),
-        'Chest': RiggedObject('Chest', chest_mesh),
-        'Neck': RiggedObject('Neck', joint_mesh.copy()),
-        'Head': RiggedObject('Head', head_mesh),
-        'LeftShoulder': RiggedObject('LeftShoulder', joint_mesh.copy()),
-        'LeftUpperArm': RiggedObject('LeftUpperArm', arm_mesh.copy()),
-        'LeftLowerArm': RiggedObject('LeftLowerArm', arm_mesh.copy()),
-        'LeftHand': RiggedObject('LeftHand', joint_mesh.copy()),
-        'RightShoulder': RiggedObject('RightShoulder', joint_mesh.copy()),
-        'RightUpperArm': RiggedObject('RightUpperArm', arm_mesh.copy()),
-        'RightLowerArm': RiggedObject('RightLowerArm', arm_mesh.copy()),
-        'RightHand': RiggedObject('RightHand', joint_mesh.copy()),
-        'LeftUpperLeg': RiggedObject('LeftUpperLeg', leg_mesh.copy()),
-        'LeftLowerLeg': RiggedObject('LeftLowerLeg', leg_mesh.copy()),
-        'LeftFoot': RiggedObject('LeftFoot', joint_mesh.copy()),
-        'RightUpperLeg': RiggedObject('RightUpperLeg', leg_mesh.copy()),
-        'RightLowerLeg': RiggedObject('RightLowerLeg', leg_mesh.copy()),
-        'RightFoot': RiggedObject('RightFoot', joint_mesh.copy())
-    }
-
     offsets = {
-        'Hips': [0.0, 0.5 * height_m, 0.0],
-        'Spine': [0.0, 0.65 * height_m, 0.0],
-        'Chest': [0.0, 0.8 * height_m, 0.0],
-        'Neck': [0.0, 1.05 * height_m, 0.0],
-        'Head': [0.0, 1.15 * height_m, 0.0],
-        'LeftShoulder': [-0.2 * scale_factor, 0.95 * height_m, 0.0],
-        'LeftUpperArm': [-0.25 * scale_factor, 0.8 * height_m, 0.0],
-        'LeftLowerArm': [-0.25 * scale_factor, 0.5 * height_m, 0.0],
-        'LeftHand': [-0.25 * scale_factor, 0.2 * height_m, 0.0],
-        'RightShoulder': [0.2 * scale_factor, 0.95 * height_m, 0.0],
-        'RightUpperArm': [0.25 * scale_factor, 0.8 * height_m, 0.0],
-        'RightLowerArm': [0.25 * scale_factor, 0.5 * height_m, 0.0],
-        'RightHand': [0.25 * scale_factor, 0.2 * height_m, 0.0],
-        'LeftUpperLeg': [-0.1 * scale_factor, 0.3 * height_m, 0.0],
-        'LeftLowerLeg': [-0.1 * scale_factor, 0.0 * height_m, 0.0],
-        'LeftFoot': [-0.1 * scale_factor, -0.2 * height_m, 0.0],
-        'RightUpperLeg': [0.1 * scale_factor, 0.3 * height_m, 0.0],
-        'RightLowerLeg': [0.1 * scale_factor, 0.0 * height_m, 0.0],
-        'RightFoot': [0.1 * scale_factor, -0.2 * height_m, 0.0],
+        'Hips': [0.0, 0.0, 0.5 * height_m],
+        'Spine': [0.0, 0.0, 0.65 * height_m],
+        'Chest': [0.0, 0.0, 0.8 * height_m],
+        'Neck': [0.0, 0.0, 1.05 * height_m],
+        'Head': [0.0, 0.0, 1.15 * height_m],
+        'LeftShoulder': [-0.2 * scale_factor, 0.0, 0.95 * height_m],
+        'LeftUpperArm': [-0.25 * scale_factor, 0.0, 0.8 * height_m],
+        'LeftLowerArm': [-0.25 * scale_factor, 0.0, 0.5 * height_m],
+        'LeftHand': [-0.25 * scale_factor, 0.0, 0.2 * height_m],
+        'RightShoulder': [0.2 * scale_factor, 0.0, 0.95 * height_m],
+        'RightUpperArm': [0.25 * scale_factor, 0.0, 0.8 * height_m],
+        'RightLowerArm': [0.25 * scale_factor, 0.0, 0.5 * height_m],
+        'RightHand': [0.25 * scale_factor, 0.0, 0.2 * height_m],
+        'LeftUpperLeg': [-0.1 * scale_factor, 0.0, 0.3 * height_m],
+        'LeftLowerLeg': [-0.1 * scale_factor, 0.0, 0.0 * height_m],
+        'LeftFoot': [-0.1 * scale_factor, 0.0, -0.2 * height_m],
+        'RightUpperLeg': [0.1 * scale_factor, 0.0, 0.3 * height_m],
+        'RightLowerLeg': [0.1 * scale_factor, 0.0, 0.0 * height_m],
+        'RightFoot': [0.1 * scale_factor, 0.0, -0.2 * height_m],
     }
 
-    for name, obj in parts.items():
-        if name in offsets:
-            obj.base_mesh.apply_translation(offsets[name])
+    mesh_map = {
+        'Hips': joint_mesh, 'Spine': joint_mesh, 'Chest': chest_mesh,
+        'Neck': joint_mesh, 'Head': head_mesh,
+        'LeftShoulder': joint_mesh, 'LeftUpperArm': arm_mesh, 'LeftLowerArm': arm_mesh, 'LeftHand': joint_mesh,
+        'RightShoulder': joint_mesh, 'RightUpperArm': arm_mesh, 'RightLowerArm': arm_mesh, 'RightHand': joint_mesh,
+        'LeftUpperLeg': leg_mesh, 'LeftLowerLeg': leg_mesh, 'LeftFoot': joint_mesh,
+        'RightUpperLeg': leg_mesh, 'RightLowerLeg': leg_mesh, 'RightFoot': joint_mesh
+    }
+
+    parts = {}
+    for name, geom in mesh_map.items():
+        pivot = offsets.get(name, [0.0, 0.0, 0.0])
+        m = geom.copy()
+        m.apply_translation(pivot)
+        parts[name] = RiggedObject(name, m, pivot=pivot)
 
     return parts
 
@@ -108,6 +99,56 @@ def verify_dsl_with_trealla(dsl_text):
         return False
 
 
+def render_scene_to_image(scene, filepath):
+    """Robust software-based frame renderer using Matplotlib Poly3DCollection (Z-up oriented)."""
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+        
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        
+        all_verts = []
+        for geom in scene.geometry.values():
+            if hasattr(geom, 'vertices') and hasattr(geom, 'faces'):
+                verts = geom.vertices
+                faces = geom.faces
+                if len(verts) > 0 and len(faces) > 0:
+                    poly = Poly3DCollection(verts[faces], alpha=0.9)
+                    poly.set_facecolor('#4682B4')
+                    poly.set_edgecolor('#2c5270')
+                    poly.set_linewidth(0.15)
+                    ax.add_collection3d(poly)
+                    all_verts.append(verts)
+                    
+        if all_verts:
+            all_verts = np.vstack(all_verts)
+            min_val = all_verts.min(axis=0)
+            max_val = all_verts.max(axis=0)
+            center = (min_val + max_val) / 2.0
+            max_range = np.max(max_val - min_val) * 0.70
+            if max_range < 1e-3:
+                max_range = 1.0
+            ax.set_xlim(center[0] - max_range, center[0] + max_range)
+            ax.set_ylim(center[1] - max_range, center[1] + max_range)
+            ax.set_zlim(center[2] - max_range, center[2] + max_range)
+            
+        ax.view_init(elev=20, azim=-60)
+        ax.set_axis_off()
+        
+        fig.patch.set_facecolor('#1e1e1e')
+        ax.set_facecolor('#1e1e1e')
+        
+        plt.savefig(filepath, bbox_inches='tight', pad_inches=0, dpi=100, facecolor=fig.get_facecolor())
+        plt.close(fig)
+        return True
+    except Exception as e:
+        print(f"Software frame rendering error: {e}")
+        return False
+
+
 def process_rigging_scene(rigged_objects, time_steps):
     output_dir = "rigged_glbs"
     os.makedirs(output_dir, exist_ok=True)
@@ -117,38 +158,21 @@ def process_rigging_scene(rigged_objects, time_steps):
     print(f"Processing {len(time_steps)} frames (GLBs + Image snapshots)...")
     
     for i, t in enumerate(time_steps):
-        # Build a fresh scene for each time step so transformations don't accumulate incorrectly 
-        # and camera bounds / node references stay stable without flickering.
         frame_scene = trimesh.Scene()
         
         for obj in rigged_objects.values():
             mesh_at_t = obj.get_mesh_at_time(t)
             frame_scene.add_geometry(mesh_at_t, node_name=obj.name, geom_name=obj.name)
 
-        # 1. Export GLB for this exact time frame
         glb_path = os.path.join(output_dir, f"frame_{i:04d}_t{t:.2f}.glb")
         frame_scene.export(glb_path)
 
-        # 2. Render PNG snapshot using pyrender or offscreen renderer if available, 
-        # or fall back to trimesh's software/gl pipeline.
-        png_data = None
-        try:
-            png_data = frame_scene.save_image(resolution=[800, 600], backend='gl')
-        except Exception:
-            try:
-                png_data = frame_scene.save_image(resolution=[800, 600], backend='pyglet')
-            except Exception:
-                png_data = None
-
-        if png_data:
-            frame_path = f"_frames/frame_{i:04d}.png"
-            with open(frame_path, "wb") as f:
-                f.write(png_data)
+        frame_path = f"_frames/frame_{i:04d}.png"
+        if render_scene_to_image(frame_scene, frame_path):
             frame_files.append(frame_path)
 
     print(f"GLB export complete. Files saved in {output_dir}/")
 
-    # Stitch frames into GIF
     if frame_files:
         output_filename = "rigged_scene.gif"
         print(f"Stitched {len(frame_files)} frames into {output_filename} using ffmpeg...")
@@ -164,7 +188,7 @@ def process_rigging_scene(rigged_objects, time_steps):
         os.rmdir("_frames")
         print(f"Animated GIF successfully exported to {output_filename}")
     else:
-        print("Warning: Headless image backend unavailable; skipped GIF creation, but GLB sequence generated successfully.")
+        print("Warning: Could not render frame snapshots for GIF creation.")
         if os.path.exists("_frames"):
             os.rmdir("_frames")
 
@@ -182,6 +206,7 @@ def parse_and_apply_dsl(dsl_text, rigged_objects_map):
             raise ValueError(f"Unknown object target: {obj_name}")
 
         obj = rigged_objects_map[obj_name]
+        pivot = obj.pivot
 
         if "_translate(" in cmd:
             inner = cmd.split("_translate(", 1)[1].rstrip(")")
@@ -202,54 +227,64 @@ def parse_and_apply_dsl(dsl_text, rigged_objects_map):
             inner = cmd.split("_oscillate(", 1)[1].rstrip(")")
             parts = [p.strip() for p in inner.split(",")]
             axis, freq, amp = parts[0], float(parts[1]), float(parts[2])
-            def make_osc(ax, f, a):
-                return lambda t: trimesh.transformations.translation_matrix(
-                    [a * np.sin(2 * np.pi * f * t) if ax in ('x', 'X') else 0,
-                     a * np.sin(2 * np.pi * f * t) if ax in ('y', 'Y') else 0,
-                     a * np.sin(2 * np.pi * f * t) if ax in ('z', 'Z') else 0]
-                )
-            obj.add_transformation(make_osc(axis, freq, amp))
+            def make_osc(ax, f, a, pvt):
+                ax_lower = ax.lower()
+                angle_func = lambda t: a * np.sin(2 * np.pi * f * t)
+                dir_vec = [1, 0, 0] if ax_lower == 'x' else ([0, 1, 0] if ax_lower == 'y' else [0, 0, 1])
+                return lambda t: trimesh.transformations.rotation_matrix(angle_func(t), dir_vec, point=pvt)
+            obj.add_transformation(make_osc(axis, freq, amp, pivot))
+
+        elif "_rotate(" in cmd:
+            inner = cmd.split("_rotate(", 1)[1].rstrip(")")
+            parts = [p.strip() for p in inner.split(",")]
+            axis, freq, amp = parts[0], float(parts[1]), float(parts[2])
+            def make_rot(ax, f, a, pvt):
+                ax_lower = ax.lower()
+                angle_func = lambda t: a * np.sin(2 * np.pi * f * t)
+                dir_vec = [1, 0, 0] if ax_lower == 'x' else ([0, 1, 0] if ax_lower == 'y' else [0, 0, 1])
+                return lambda t: trimesh.transformations.rotation_matrix(angle_func(t), dir_vec, point=pvt)
+            obj.add_transformation(make_rot(axis, freq, amp, pivot))
 
         elif "_orbit(" in cmd:
             inner = cmd.split("_orbit(", 1)[1].rstrip(")")
             parts = [p.strip() for p in inner.split(",")]
             radius, speed, axis = float(parts[0]), float(parts[1]), parts[2]
             def make_orb(r, s, ax):
-                return lambda t: trimesh.transformations.translation_matrix(
-                    [r * np.cos(s * t) if ax in ('x', 'X') else 0,
-                     r * np.sin(s * t) if ax in ('y', 'Y') else 0,
-                     0]
-                )
+                ax_lower = ax.lower()
+                if ax_lower == 'z':
+                    return lambda t: trimesh.transformations.translation_matrix([r * np.cos(s * t), r * np.sin(s * t), 0.0])
+                elif ax_lower == 'y':
+                    return lambda t: trimesh.transformations.translation_matrix([r * np.cos(s * t), 0.0, r * np.sin(s * t)])
+                else:
+                    return lambda t: trimesh.transformations.translation_matrix([0.0, r * np.cos(s * t), r * np.sin(s * t)])
             obj.add_transformation(make_orb(radius, speed, axis))
 
 
 if __name__ == "__main__":
     positional_args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
 
-    if positional_args:
-        script_path = positional_args[0]
-        if not os.path.exists(script_path):
-            print(f"Error: Rigging script file '{script_path}' not found.")
-            sys.exit(1)
-        with open(script_path, "r") as f:
-            sample_dsl = f.read()
-    else:
-        sample_dsl = (
-            "Chest: Chest_translate(0.0, 1.13, 0.0);\n"
-            "Chest: Chest_uniform_scale(1.05);\n"
-            "LeftUpperArm: LeftUpperArm_oscillate(x, 0.5, 2.0);\n"
-            "Head: Head_orbit(1.2, 0.2, y);\n"
-        )
+    if not positional_args:
+        print("Error: No rigging program provided.")
+        print("Usage: python RIG.py <script.rig>")
+        sys.exit(1)
+
+    script_path = positional_args[0]
+    if not os.path.exists(script_path):
+        print(f"Error: Rigging script file '{script_path}' not found.")
+        sys.exit(1)
+
+    with open(script_path, "r") as f:
+        dsl_content = f.read()
 
     scene_map = generate_parametric_human(mass_kg=75.0, height_m=1.75)
 
-    print("Verifying DSL syntax via rig_parser.pl...")
-    if not verify_dsl_with_trealla(sample_dsl):
+    print(f"Verifying DSL syntax via rig_parser.pl using '{script_path}'...")
+    if not verify_dsl_with_trealla(dsl_content):
         print("Prolog verification failed. Aborting execution.")
         sys.exit(1)
     print("Prolog verification passed.")
 
-    parse_and_apply_dsl(sample_dsl, scene_map)
+    parse_and_apply_dsl(dsl_content, scene_map)
     
     time_steps = np.linspace(0, 3.0, 90)
     process_rigging_scene(scene_map, time_steps)

@@ -29,9 +29,8 @@
 
 ### `rig/rig.py` & `rig/rig_parser.pl`
 
-- `pip install trimesh numpy ffmpeg-python "pyglet<2"`
+- `pip install trimesh numpy ffmpeg-python "pyglet<2" matplotlib`
 - 1:`tpl -l rig_parser.pl -g "write_rigging_program(77), halt."`
-- 2: `tpl -l rig_parser.pl -g "validate_script, halt."`
-- 3: `python3 rig.py script.rig`
+- 2: `python3 rig.py script.rig`
 
-![](artifacts/rig_0_glb.png)
+![](artifacts/rigged_glbs.gif)

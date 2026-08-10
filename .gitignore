@@ -15,7 +15,7 @@ rig/rigged_glbs/*.glb
 !artifacts/opengl_cig.gif
 !artifacts/opengl_shader.gif
 !artifacts/pc_cig_0.gif
-!artifacts/rig_0_glb.png
+!artifacts/rigged_glb.gif
 !rig/rig.py
 !rig/rig_parser.pl 
 !rig/script.rig

@@ -77,7 +77,7 @@ line -->
 command(Obj) --> 
     match_atom(Obj), "_translate(", ws, number, ws, ",", ws, number, ws, ",", ws, number, ws, ")", opt_semi.
 command(Obj) --> 
-    match_atom(Obj), "_rotate(", ws, axis, ws, ",", ws, number, ws, ")", opt_semi.
+    match_atom(Obj), "_rotate(", ws, axis, ws, ",", ws, number, ws, ",", ws, number, ws, ")", opt_semi.
 command(Obj) --> 
     match_atom(Obj), "_scale(", ws, number, ws, ",", ws, number, ws, ",", ws, number, ws, ")", opt_semi.
 command(Obj) --> 
