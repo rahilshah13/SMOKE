@@ -1,6 +1,3 @@
-# Render Study
-
-
 #### `pypy3 render-2D.py 5; rm *.rgb`
 ![2D Render](artifacts/2d_cig.gif)
 
