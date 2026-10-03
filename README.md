@@ -34,12 +34,7 @@
 
 ---
 
-#### `rig/rig.py` & `rig/rig_parser.pl`
-
-- `pip install trimesh numpy ffmpeg-python "pyglet<2" matplotlib`
-- Random: `tpl -l rig_parser.pl -g "write_rigging_program(77), halt."` 
-- Walk Cycle: `tpl -l rig_parser.pl -g "write_rigging_program(2.0, 0.3), halt."`
-- Render: `python3 rig.py script.rig`
-
-![](artifacts/rigged_glbs.gif)
+#### `rig/`
+- `docker build -r render .;docker run --rm -p 8000:8000 -v $(pwd):/app render`
+![](artifacts/rigged_scene.gif)
 
