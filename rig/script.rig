@@ -1,4 +1,0 @@
-Left_Head: Left_Head_oscillate(y, 0.8, 0.15);
-Right_Head: Right_Head_oscillate(x, 0.6, 0.12);
-Left_Chest: Left_Chest_orbit(1.0, 0.3, y);
-Right_Chest: Right_Chest_orbit(1.0, 0.3, y);
