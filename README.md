@@ -31,10 +31,3 @@
 - `gcc heads.c -o heads -I/opt/homebrew/include -L/opt/homebrew/lib -lglfw -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo -lm`
 - `./heads`
 ![](artifacts/heads.gif)
-
----
-
-#### `rig/`
-- `docker build -r render .;docker run --rm -p 8000:8000 -v $(pwd):/app render`
-![](artifacts/rigged_scene.gif)
-
